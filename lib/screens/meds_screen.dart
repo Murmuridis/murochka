@@ -30,9 +30,29 @@ class _MedsScreenState extends State<MedsScreen> {
   }
 
   Future<void> _toggle(Med m, bool v) async {
+    // Сразу показываем новое состояние, потом сохраняем
+    setState(() => _meds = [for (final x in _meds!) x.id == m.id ? x.copyWith(active: v) : x]);
     final upd = m.copyWith(active: v);
     await AppDb.instance.saveMed(upd);
-    await Notifier.instance.scheduleMed(upd);
+    try {
+      if (v) await Notifier.instance.requestPermissions();
+      await Notifier.instance.scheduleMed(upd);
+    } catch (_) {}
+    if (!mounted) return;
+    toast(context, v ? '${m.name}: напоминания включены' : '${m.name}: напоминания выключены');
+    _load();
+  }
+
+  Future<bool> _confirmDelete(Med m) async =>
+      await confirmDialog(context, 'Удалить лекарство?', '${m.name} и все его напоминания') == true;
+
+  Future<void> _delete(Med m) async {
+    setState(() => _meds = _meds!.where((x) => x.id != m.id).toList());
+    try {
+      await Notifier.instance.cancelMed(m.id!);
+    } catch (_) {}
+    await AppDb.instance.deleteMed(m.id!);
+    if (mounted) toast(context, '${m.name} удалено');
     _load();
   }
 
@@ -63,30 +83,47 @@ class _MedsScreenState extends State<MedsScreen> {
                     ]),
                   ),
                 for (final m in meds)
-                  SoftCard(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    onTap: () => _edit(m),
-                    padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
-                    child: Opacity(
-                      opacity: m.active ? 1 : .55,
-                      child: Row(children: [
-                        PillIcon(shape: m.shape, color: pillColors[m.color % pillColors.length], size: 62),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(m.name, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
-                            if (m.dose.isNotEmpty) Text(m.dose, style: const TextStyle(fontSize: 15, color: Wool.muted)),
-                            const SizedBox(height: 4),
-                            Row(children: [
-                              const Icon(Icons.alarm, size: 18, color: Wool.raspberry),
-                              const SizedBox(width: 6),
-                              Flexible(child: Text(m.times.join(', '), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-                            ]),
-                          ]),
-                        ),
-                        Switch(value: m.active, onChanged: (v) => _toggle(m, v)),
-                      ]),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Dismissible(
+                      key: ValueKey('med-${m.id}'),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (_) => _confirmDelete(m),
+                      onDismissed: (_) => _delete(m),
+                      background: const _DeleteBackground(),
+                      child: SoftCard(
+                        onTap: () => _edit(m),
+                        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                        child: Row(children: [
+                          Opacity(
+                            opacity: m.active ? 1 : .45,
+                            child: PillIcon(shape: m.shape, color: pillColors[m.color % pillColors.length], size: 62),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Opacity(
+                              opacity: m.active ? 1 : .5,
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(m.name, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                                if (m.dose.isNotEmpty) Text(m.dose, style: const TextStyle(fontSize: 15, color: Wool.muted)),
+                                const SizedBox(height: 4),
+                                Row(children: [
+                                  Icon(m.active ? Icons.alarm : Icons.alarm_off, size: 18, color: m.active ? Wool.raspberry : Wool.muted),
+                                  const SizedBox(width: 6),
+                                  Flexible(child: Text(m.times.join(', '), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                                ]),
+                              ]),
+                            ),
+                          ),
+                          KnitSwitch(value: m.active, onChanged: (v) => _toggle(m, v)),
+                        ]),
+                      ),
                     ),
+                  ),
+                if (meds.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2, bottom: 4),
+                    child: Text('Смахни лекарство влево, чтобы удалить', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Wool.muted)),
                   ),
                 const SizedBox(height: 10),
                 ClipRRect(
@@ -97,6 +134,27 @@ class _MedsScreenState extends State<MedsScreen> {
             ),
     );
   }
+}
+
+class _DeleteBackground extends StatelessWidget {
+  const _DeleteBackground();
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: CustomPaint(
+          painter: KnitPainter(Wool.raspberry, stitch: 10, contrast: .7),
+          child: const Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: EdgeInsets.only(right: 24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.delete_outline, color: Colors.white, size: 32),
+                Text('Удалить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              ]),
+            ),
+          ),
+        ),
+      );
 }
 
 class MedEditScreen extends StatefulWidget {

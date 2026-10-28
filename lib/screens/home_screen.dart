@@ -55,45 +55,103 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final size = MediaQuery.of(context).size;
     final pad = MediaQuery.of(context).padding;
     final next = _next;
+    // Картинка котика: натуральная пропорция 288×448. Надпись и подзаголовок
+    // стоят под кнопками, а картинка сдвигается вниз, если места не хватает.
+    final imgH = size.width * 448 / 288;
+    final logoTop = pad.top + 66;
+    final logoH = size.width * .80 / 4.3;
+    final textBottom = logoTop + logoH + 74;
+    final catTopInImage = imgH * .41;
+    final imgTop = (textBottom - catTopInImage).clamp(0.0, 200.0);
     return Scaffold(
       backgroundColor: Wool.cream,
       body: Stack(children: [
         Positioned.fill(child: CustomPaint(painter: KnitPainter(Wool.cream, stitch: 15, contrast: .28))),
-        // Котик в клубках (картинка уже содержит «Мурочка» и подпись)
+        // Котик в клубках
         Positioned(
-          top: 0,
+          top: imgTop,
           left: 0,
           right: 0,
-          height: size.height * .72,
+          height: imgH,
           child: ShaderMask(
             shaderCallback: (r) => const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [Colors.white, Colors.white, Colors.transparent],
-              stops: [0, .82, 1],
+              stops: [0, .80, .97],
             ).createShader(r),
             blendMode: BlendMode.dstIn,
-            child: Image.asset('assets/images/hero.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter),
+            child: Image.asset('assets/images/hero.jpg', fit: BoxFit.cover, alignment: Alignment.topCenter, filterQuality: FilterQuality.high),
           ),
+        ),
+        if (imgTop > 0)
+          // мягкий переход от вязаного фона к комнате
+          Positioned(
+            top: imgTop - 1,
+            left: 0,
+            right: 0,
+            height: 40,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Wool.cream, Color(0x00F2E4D8)]),
+              ),
+            ),
+          ),
+        // Затемнение за надписью, чтобы текст читался
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: textBottom + 30,
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x26000000), Color(0x14000000), Color(0x00000000)],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: logoTop,
+          left: size.width * .10,
+          right: size.width * .10,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Image.asset('assets/images/logo.png', height: logoH, fit: BoxFit.contain, filterQuality: FilterQuality.high),
+            const SizedBox(height: 10),
+            const Text(
+              'Забота о твоём\nздоровье каждый день',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                shadows: [Shadow(color: Color(0xAA3B2A23), blurRadius: 8), Shadow(color: Color(0x663B2A23), blurRadius: 2, offset: Offset(0, 1))],
+              ),
+            ),
+          ]),
         ),
         Positioned(
           top: pad.top + 10,
           left: 16,
           right: 16,
           child: Row(children: [
-            RoundKnitButton(onTap: () => _go(const SettingsScreen()), child: const Icon(Icons.settings_outlined, color: Wool.ink)),
+            RoundKnitButton(size: 48, onTap: () => _go(const SettingsScreen()), child: const Icon(Icons.settings_outlined, color: Wool.ink)),
             const Spacer(),
             RoundKnitButton(
+              size: 48,
               onTap: () => _go(const TodayScreen()),
               child: Stack(clipBehavior: Clip.none, children: [
-                const Icon(Icons.favorite, color: Wool.raspberry),
+                Image.asset('assets/images/heart.png', width: 30, height: 30, filterQuality: FilterQuality.high),
                 if (_left > 0)
                   Positioned(
-                    right: -8,
-                    top: -8,
+                    right: -9,
+                    top: -9,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(color: Wool.raspberry, shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: Wool.raspberry, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
                       child: Text('$_left', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
                     ),
                   ),
@@ -131,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onTap: () => _go(const RecordScreen()),
               padding: const EdgeInsets.symmetric(vertical: 18),
               child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.favorite, color: Wool.raspberry, size: 28),
+                Image(image: AssetImage('assets/images/heart.png'), width: 34, height: 34),
                 SizedBox(width: 12),
                 Text('Записать давление', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               ]),
@@ -161,7 +219,7 @@ class _Tile extends StatelessWidget {
         child: SizedBox(
           height: 104,
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(image, width: 56, height: 56)),
+            ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(image, width: 60, height: 60, filterQuality: FilterQuality.high)),
             const SizedBox(height: 8),
             Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.15)),
           ]),

@@ -90,7 +90,7 @@ class AppDb {
     final dir = await getDatabasesPath();
     _db = await openDatabase(
       p.join(dir, 'murochka.db'),
-      version: 2,
+      version: 3,
       onCreate: (db, v) async {
         await db.execute('''CREATE TABLE readings(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,12 +104,16 @@ class AppDb {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           med_id INTEGER NOT NULL, day TEXT NOT NULL, slot TEXT NOT NULL,
           taken_at INTEGER NOT NULL)''');
+        await db.execute('CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)');
       },
       onUpgrade: (db, from, to) async {
         if (from < 2) {
           await db.execute('ALTER TABLE readings ADD COLUMN mood INTEGER');
           await db.execute("ALTER TABLE meds ADD COLUMN shape TEXT DEFAULT 'capsule'");
           await db.execute('ALTER TABLE meds ADD COLUMN color INTEGER DEFAULT 0');
+        }
+        if (from < 3) {
+          await db.execute('CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT)');
         }
       },
     );
@@ -184,5 +188,50 @@ class AppDb {
     if (taken) {
       await d.insert('intakes', {'med_id': medId, 'day': dayKey(day), 'slot': slot, 'taken_at': DateTime.now().millisecondsSinceEpoch});
     }
+  }
+
+  // --- служебное
+  Future<String?> getMeta(String key) async {
+    final rows = await (await db).query('meta', where: 'key = ?', whereArgs: [key]);
+    return rows.isEmpty ? null : rows.first['value'] as String?;
+  }
+
+  Future<void> setMeta(String key, String value) async {
+    await (await db).insert('meta', {'key': key, 'value': value}, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // --- резервная копия
+  Future<Map<String, List<Map<String, Object?>>>> dumpAll() async {
+    final d = await db;
+    return {
+      'readings': await d.query('readings', orderBy: 'time'),
+      'meds': await d.query('meds', orderBy: 'id'),
+      'intakes': await d.query('intakes', orderBy: 'id'),
+    };
+  }
+
+  Future<void> replaceAll(Map<String, dynamic> data) async {
+    const columns = {
+      'readings': ['id', 'sys', 'dia', 'pulse', 'mood', 'time', 'note'],
+      'meds': ['id', 'name', 'dose', 'times', 'active', 'shape', 'color'],
+      'intakes': ['id', 'med_id', 'day', 'slot', 'taken_at'],
+    };
+    final d = await db;
+    await d.transaction((txn) async {
+      for (final table in columns.keys) {
+        await txn.delete(table);
+      }
+      for (final table in columns.keys) {
+        final rows = (data[table] as List?) ?? const [];
+        for (final r in rows) {
+          if (r is! Map) continue;
+          final row = <String, Object?>{
+            for (final c in columns[table]!)
+              if (r.containsKey(c)) c: r[c],
+          };
+          await txn.insert(table, row, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+    });
   }
 }

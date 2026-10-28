@@ -493,3 +493,125 @@ Future<bool?> confirmDialog(BuildContext context, String title, String text, {St
 
 void toast(BuildContext context, String text) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, backgroundColor: Wool.ink));
+
+/// Контур сердечка в квадрате size×size.
+Path heartPath(Size s) {
+  final w = s.width, h = s.height;
+  return Path()
+    ..moveTo(w * .5, h * .92)
+    ..cubicTo(w * .18, h * .70, w * .02, h * .50, w * .04, h * .30)
+    ..cubicTo(w * .06, h * .10, w * .30, h * .02, w * .5, h * .22)
+    ..cubicTo(w * .70, h * .02, w * .94, h * .10, w * .96, h * .30)
+    ..cubicTo(w * .98, h * .50, w * .82, h * .70, w * .5, h * .92)
+    ..close();
+}
+
+/// Вязаное сердечко: лицевая гладь + пунктирный шов по краю.
+class KnitHeartPainter extends CustomPainter {
+  final Color color;
+  KnitHeartPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = heartPath(size);
+    canvas.drawPath(path.shift(Offset(0, size.height * .05)), Paint()
+      ..color = Colors.black.withOpacity(.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+    canvas.save();
+    canvas.clipPath(path);
+    KnitPainter(color, stitch: math.max(4, size.width * .17), contrast: .75).paint(canvas, size);
+    // объём: светлее сверху-слева, темнее снизу
+    canvas.drawPath(path, Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-.35, -.45),
+        radius: .9,
+        colors: [Colors.white.withOpacity(.18), Colors.transparent, Colors.black.withOpacity(.22)],
+        stops: const [0, .55, 1],
+      ).createShader(Offset.zero & size));
+    canvas.restore();
+    if (size.width >= 22) {
+      final inner = heartPath(size.deflateBy(size.width * .24))
+          .shift(Offset(size.width * .12, size.height * .13));
+      final stitch = Paint()
+        ..color = Colors.white.withOpacity(.55)
+        ..strokeWidth = math.max(1, size.width * .035)
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      for (final m in inner.computeMetrics()) {
+        final dash = size.width * .07, gap = size.width * .06;
+        for (double d = 0; d < m.length; d += dash + gap) {
+          canvas.drawPath(m.extractPath(d, math.min(d + dash, m.length)), stitch);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(KnitHeartPainter old) => old.color != color;
+}
+
+extension on Size {
+  Size deflateBy(double d) => Size(width - d, height - d);
+}
+
+class KnitHeart extends StatelessWidget {
+  final double size;
+  final Color color;
+  const KnitHeart({super.key, this.size = 28, this.color = Wool.raspberry});
+  @override
+  Widget build(BuildContext context) => SizedBox(width: size, height: size, child: CustomPaint(painter: KnitHeartPainter(color)));
+}
+
+/// Крупный вязаный переключатель с подписью «Вкл / Выкл».
+class KnitSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const KnitSwitch({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        toggled: value,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: 62,
+                height: 34,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(17),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(.18), blurRadius: 4, offset: const Offset(0, 2))],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(17),
+                  child: CustomPaint(
+                    painter: KnitPainter(value ? Wool.green : const Color(0xFFCDB8A6), stitch: 7, contrast: .55),
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(.25), blurRadius: 3, offset: const Offset(0, 1))],
+                        ),
+                        child: Icon(value ? Icons.check : Icons.close, size: 16, color: value ? Wool.green : Wool.muted),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(value ? 'Вкл' : 'Выкл', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: value ? Wool.green : Wool.muted)),
+            ]),
+          ),
+        ),
+      );
+}

@@ -87,7 +87,15 @@ class _RecordsScreenState extends State<RecordsScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${r.sys}/${r.dia}${r.pulse != null ? '   ♥ ${r.pulse}' : ''}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+              Row(children: [
+                Text('${r.sys}/${r.dia}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                if (r.pulse != null) ...[
+                  const SizedBox(width: 14),
+                  const KnitHeart(size: 18),
+                  const SizedBox(width: 4),
+                  Text('${r.pulse}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                ],
+              ]),
               if (r.note.isNotEmpty) Text(r.note, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: Wool.muted)),
             ]),
           ),
