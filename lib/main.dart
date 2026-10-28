@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'knit.dart';
 import 'notifications.dart';
 import 'screens/home_screen.dart';
+import 'screens/record_screen.dart';
 import 'screens/reminder_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -15,6 +16,7 @@ Future<void> main() async {
   await initializeDateFormatting('ru');
   await Notifier.instance.init();
   Notifier.instance.onTap = _openReminder;
+  Notifier.instance.onBpTap = _openRecord;
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
@@ -27,8 +29,16 @@ Future<void> main() async {
       Notifier.instance.launchTap = null;
       _openReminder(t);
     }
+    if (Notifier.instance.launchBp) {
+      Notifier.instance.launchBp = false;
+      _openRecord();
+    }
   });
   Notifier.instance.requestPermissions().then((_) => Notifier.instance.rescheduleAll());
+}
+
+void _openRecord() {
+  navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const RecordScreen()));
 }
 
 void _openReminder(ReminderTap t) {

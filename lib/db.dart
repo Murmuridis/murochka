@@ -207,6 +207,7 @@ class AppDb {
       'readings': await d.query('readings', orderBy: 'time'),
       'meds': await d.query('meds', orderBy: 'id'),
       'intakes': await d.query('intakes', orderBy: 'id'),
+      'meta': await d.query('meta', where: "key != 'last_backup'"),
     };
   }
 
@@ -215,16 +216,22 @@ class AppDb {
       'readings': ['id', 'sys', 'dia', 'pulse', 'mood', 'time', 'note'],
       'meds': ['id', 'name', 'dose', 'times', 'active', 'shape', 'color'],
       'intakes': ['id', 'med_id', 'day', 'slot', 'taken_at'],
+      'meta': ['key', 'value'],
     };
     final d = await db;
     await d.transaction((txn) async {
       for (final table in columns.keys) {
-        await txn.delete(table);
+        if (table == 'meta') {
+          if (data['meta'] != null) await txn.delete('meta', where: "key != 'last_backup'");
+        } else {
+          await txn.delete(table);
+        }
       }
       for (final table in columns.keys) {
         final rows = (data[table] as List?) ?? const [];
         for (final r in rows) {
           if (r is! Map) continue;
+          if (table == 'meta' && r['key'] == 'last_backup') continue;
           final row = <String, Object?>{
             for (final c in columns[table]!)
               if (r.containsKey(c)) c: r[c],

@@ -19,6 +19,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
   int? _pending;
   bool? _notifOn;
+  List<String> _bpTimes = [];
+  bool _bpOn = true;
 
   @override
   void initState() {
@@ -30,6 +32,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final v = await AppDb.instance.getMeta('last_backup');
     int? pending;
     bool? on;
+    final bpTimes = await Notifier.instance.bpTimes();
+    final bpOn = await Notifier.instance.bpEnabled();
     try {
       pending = await Notifier.instance.pendingCount();
       on = await Notifier.instance.enabled();
@@ -39,6 +43,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _lastBackup = v == null ? null : DateTime.tryParse(v);
         _pending = pending;
         _notifOn = on;
+        _bpTimes = bpTimes;
+        _bpOn = bpOn;
       });
     }
   }
@@ -59,6 +65,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _loadMeta();
     }
   }
+
+  Future<void> _saveBp(List<String> times, bool on) => _run(() async {
+        setState(() {
+          _bpTimes = List.of(times)..sort();
+          _bpOn = on;
+        });
+        await Notifier.instance.requestPermissions();
+        await Notifier.instance.saveBp(times, on);
+        if (!mounted) return;
+        toast(
+          context,
+          !on || times.isEmpty ? 'Напоминания о давлении выключены' : 'Напомню измерить давление: ${(List.of(times)..sort()).join(', ')}',
+        );
+      });
+
+  Future<void> _addBpTime() async {
+    final t = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 8, minute: 0), helpText: 'Когда измерять давление');
+    if (t == null) return;
+    final s = hm(t.hour, t.minute);
+    if (_bpTimes.contains(s)) return;
+    await _saveBp([..._bpTimes, s], true);
+  }
+
+  Widget _bpCard() => SoftCard(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const KnitHeart(size: 30),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Измерить давление', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                Text('Напомню в выбранное время каждый день', style: TextStyle(fontSize: 13, color: Wool.muted)),
+              ]),
+            ),
+            if (_bpTimes.isNotEmpty) KnitSwitch(value: _bpOn, onChanged: (v) => _saveBp(_bpTimes, v)),
+          ]),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Opacity(
+              opacity: _bpOn || _bpTimes.isEmpty ? 1 : .5,
+              child: Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final t in _bpTimes)
+                  InputChip(
+                    avatar: const Icon(Icons.alarm, color: Colors.white, size: 18),
+                    label: Text(t, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.white)),
+                    backgroundColor: Wool.raspberry,
+                    deleteIconColor: Colors.white,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    onDeleted: _busy ? null : () => _saveBp(_bpTimes.where((x) => x != t).toList(), _bpOn),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add_alarm, color: Wool.raspberry),
+                  label: const Text('Добавить время', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  backgroundColor: Wool.card,
+                  side: const BorderSide(color: Wool.cardEdge, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  onPressed: _busy ? null : _addBpTime,
+                ),
+                if (_bpTimes.isEmpty)
+                  ActionChip(
+                    label: const Text('Утром и вечером: 08:00, 20:00', style: TextStyle(fontSize: 14)),
+                    backgroundColor: Wool.card,
+                    side: const BorderSide(color: Wool.cardEdge, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    onPressed: _busy ? null : () => _saveBp(['08:00', '20:00'], true),
+                  ),
+              ]),
+            ),
+          ),
+        ]),
+      );
 
   Future<void> _save() => _run(() async {
         final ok = await Backup.saveToFile();
@@ -115,28 +196,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListView(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.of(context).padding.bottom),
           children: [
-            _section('Резервная копия'),
-            SoftCard(
-              margin: const EdgeInsets.only(bottom: 12),
-              color: stale ? Wool.rose : Wool.card,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(children: [
-                Icon(stale ? Icons.info_outline : Icons.verified_outlined, color: stale ? Wool.raspberry : Wool.green),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    last == null
-                        ? 'Копия ещё ни разу не сохранялась. Сохрани её, чтобы не потерять записи при смене телефона или переустановке.'
-                        : 'Последняя копия: ${DateFormat('d MMMM yyyy, HH:mm', 'ru').format(last)}${stale ? '. Пора сделать новую.' : ''}',
-                    style: const TextStyle(fontSize: 14, height: 1.35),
-                  ),
-                ),
-              ]),
-            ),
-            _item(_ic(Icons.save_alt), 'Сохранить копию в файл', 'Выбери папку: Загрузки или Google Диск', _save),
-            _item(_ic(Icons.send_outlined), 'Отправить копию', 'В Telegram, на почту или в облако', _share),
-            _item(_ic(Icons.settings_backup_restore), 'Восстановить из копии', 'После переустановки или на новом телефоне', _restore),
             _section('Напоминания'),
+            _bpCard(),
             if (_pending != null)
               SoftCard(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -165,6 +226,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await Notifier.instance.rescheduleAll();
                   if (mounted) toast(context, 'Напоминания обновлены');
                 })),
+            _section('Резервная копия'),
+            SoftCard(
+              margin: const EdgeInsets.only(bottom: 12),
+              color: stale ? Wool.rose : Wool.card,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Row(children: [
+                Icon(stale ? Icons.info_outline : Icons.verified_outlined, color: stale ? Wool.raspberry : Wool.green),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    last == null
+                        ? 'Копия ещё ни разу не сохранялась. Сохрани её, чтобы не потерять записи при смене телефона или переустановке.'
+                        : 'Последняя копия: ${DateFormat('d MMMM yyyy, HH:mm', 'ru').format(last)}${stale ? '. Пора сделать новую.' : ''}',
+                    style: const TextStyle(fontSize: 14, height: 1.35),
+                  ),
+                ),
+              ]),
+            ),
+            _item(_ic(Icons.save_alt), 'Сохранить копию в файл', 'Выбери папку: Загрузки или Google Диск', _save),
+            _item(_ic(Icons.send_outlined), 'Отправить копию', 'В Telegram, на почту или в облако', _share),
+            _item(_ic(Icons.settings_backup_restore), 'Восстановить из копии', 'После переустановки или на новом телефоне', _restore),
             _section('Для врача'),
             _item(const KnitHeart(size: 26), 'Дневник давления', 'Скопировать записи за месяц текстом', () => _run(() async {
                   final text = await doctorReport();

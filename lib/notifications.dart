@@ -32,6 +32,10 @@ class Notifier {
   void Function(ReminderTap tap)? onTap;
   ReminderTap? launchTap;
 
+  /// Нажали на напоминание «измерить давление».
+  void Function()? onBpTap;
+  bool launchBp = false;
+
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
       'meds_v2',
@@ -55,13 +59,22 @@ class Notifier {
     await _plugin.initialize(
       const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
       onDidReceiveNotificationResponse: (r) {
+        if (r.payload?.startsWith('bp') == true) {
+          onBpTap?.call();
+          return;
+        }
         final t = ReminderTap.parse(r);
         if (t != null) onTap?.call(t);
       },
     );
     final launch = await _plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true && launch!.notificationResponse != null) {
-      launchTap = ReminderTap.parse(launch.notificationResponse!);
+      final r = launch.notificationResponse!;
+      if (r.payload?.startsWith('bp') == true) {
+        launchBp = true;
+      } else {
+        launchTap = ReminderTap.parse(r);
+      }
     }
   }
 
@@ -180,10 +193,69 @@ class Notifier {
     return await android?.areNotificationsEnabled() ?? true;
   }
 
+  // --- напоминания измерить давление
+  static const _bpBase = 800000;
+  static const _bpDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'bp_v1',
+      'Измерение давления',
+      channelDescription: 'Напоминания измерить давление',
+      importance: Importance.max,
+      priority: Priority.high,
+      category: AndroidNotificationCategory.reminder,
+      color: Color(0xFFC93C5E),
+    ),
+  );
+
+  /// Времена «HH:mm», сохранённые в настройках.
+  Future<List<String>> bpTimes() async {
+    final v = await AppDb.instance.getMeta('bp_times') ?? '';
+    return v.split(',').where((t) => t.contains(':')).toList()..sort();
+  }
+
+  Future<bool> bpEnabled() async => (await AppDb.instance.getMeta('bp_on') ?? '1') == '1';
+
+  Future<void> saveBp(List<String> times, bool on) async {
+    await AppDb.instance.setMeta('bp_times', (List.of(times)..sort()).join(','));
+    await AppDb.instance.setMeta('bp_on', on ? '1' : '0');
+    await scheduleBp();
+  }
+
+  Future<void> scheduleBp() async {
+    for (var i = 0; i < 24; i++) {
+      await _plugin.cancel(_bpBase + i);
+    }
+    if (!await bpEnabled()) return;
+    final times = await bpTimes();
+    final now = tz.TZDateTime.now(tz.local);
+    for (var i = 0; i < times.length && i < 24; i++) {
+      final parts = times[i].split(':');
+      var when = tz.TZDateTime(tz.local, now.year, now.month, now.day, int.parse(parts[0]), int.parse(parts[1]));
+      if (!when.isAfter(now)) when = when.add(const Duration(days: 1));
+      Future<void> go(AndroidScheduleMode mode) => _plugin.zonedSchedule(
+            _bpBase + i,
+            'Пора измерить давление',
+            'Нажми, чтобы сразу записать результат',
+            when,
+            _bpDetails,
+            payload: 'bp|${times[i]}',
+            androidScheduleMode: mode,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.time,
+          );
+      try {
+        await go(AndroidScheduleMode.exactAllowWhileIdle);
+      } catch (_) {
+        await go(AndroidScheduleMode.inexactAllowWhileIdle);
+      }
+    }
+  }
+
   Future<void> rescheduleAll() async {
     await _plugin.cancelAll();
     for (final m in await AppDb.instance.meds()) {
       await scheduleMed(m);
     }
+    await scheduleBp();
   }
 }
