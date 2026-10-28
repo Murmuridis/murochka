@@ -6,7 +6,9 @@ import '../backup.dart';
 import '../db.dart';
 import '../knit.dart';
 import '../notifications.dart';
+import 'pdf_sheet.dart';
 import 'records_screen.dart';
+import '../pdf_report.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int? _pending;
   bool? _notifOn;
   List<String> _bpTimes = [];
+  Patient _patient = const Patient('', null);
   bool _bpOn = true;
 
   @override
@@ -34,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool? on;
     final bpTimes = await Notifier.instance.bpTimes();
     final bpOn = await Notifier.instance.bpEnabled();
+    final patient = await Patient.load();
     try {
       pending = await Notifier.instance.pendingCount();
       on = await Notifier.instance.enabled();
@@ -45,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _notifOn = on;
         _bpTimes = bpTimes;
         _bpOn = bpOn;
+        _patient = patient;
       });
     }
   }
@@ -248,7 +253,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _item(_ic(Icons.send_outlined), 'Отправить копию', 'В Telegram, на почту или в облако', _share),
             _item(_ic(Icons.settings_backup_restore), 'Восстановить из копии', 'После переустановки или на новом телефоне', _restore),
             _section('Для врача'),
-            _item(const KnitHeart(size: 26), 'Дневник давления', 'Скопировать записи за месяц текстом', () => _run(() async {
+            _item(
+              _ic(Icons.person_outline),
+              'Пациент',
+              _patient.isEmpty
+                  ? 'Укажи ФИО и дату рождения — они будут в PDF'
+                  : '${_patient.name}${_patient.dob == null ? '' : ', ${DateFormat('dd.MM.yyyy').format(_patient.dob!)}'}',
+              () async {
+                await editPatient(context);
+                _loadMeta();
+              },
+            ),
+            _item(_ic(Icons.picture_as_pdf_outlined), 'PDF для врача', 'Давление, лекарства с дозировкой, сводка', () async {
+              await showPdfSheet(context);
+              _loadMeta();
+            }),
+            _item(const KnitHeart(size: 26), 'Дневник текстом', 'Скопировать записи за месяц в буфер', () => _run(() async {
                   final text = await doctorReport();
                   if (!mounted) return;
                   if (text.isEmpty) {

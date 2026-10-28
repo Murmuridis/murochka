@@ -9,7 +9,11 @@ import '../knit.dart';
 /// «Запись давления» — новая или редактирование.
 class RecordScreen extends StatefulWidget {
   final Reading? initial;
-  const RecordScreen({super.key, this.initial});
+
+  /// Режим «прошлое измерение»: сразу спрашиваем дату и время,
+  /// можно сохранить несколько записей подряд.
+  final bool past;
+  const RecordScreen({super.key, this.initial, this.past = false});
   @override
   State<RecordScreen> createState() => _RecordScreenState();
 }
@@ -19,21 +23,41 @@ class _RecordScreenState extends State<RecordScreen> {
   late final _dia = TextEditingController(text: widget.initial?.dia.toString() ?? '');
   late final _pulse = TextEditingController(text: widget.initial?.pulse?.toString() ?? '');
   late final _note = TextEditingController(text: widget.initial?.note ?? '');
-  late DateTime _time = widget.initial?.time ?? DateTime.now();
+  late DateTime _time = widget.initial?.time ?? (widget.past ? _yesterdayMorning() : DateTime.now());
+  int _added = 0;
+
+  static DateTime _yesterdayMorning() {
+    final n = DateTime.now().subtract(const Duration(days: 1));
+    return DateTime(n.year, n.month, n.day, 8, 0);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.past) WidgetsBinding.instance.addPostFrameCallback((_) => _pickTime());
+  }
   late int? _mood = widget.initial?.mood;
   final _diaFocus = FocusNode();
   final _pulseFocus = FocusNode();
   String? _error;
 
   Future<void> _pickTime() async {
-    final d = await showDatePicker(context: context, initialDate: _time, firstDate: DateTime(2020), lastDate: DateTime.now());
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _time,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      helpText: 'Дата измерения',
+    );
     if (d == null || !mounted) return;
-    final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_time));
+    final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_time), helpText: 'Время измерения');
     if (t == null) return;
-    setState(() => _time = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+    var picked = DateTime(d.year, d.month, d.day, t.hour, t.minute);
+    if (picked.isAfter(DateTime.now())) picked = DateTime.now();
+    setState(() => _time = picked);
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool more = false}) async {
     final sys = int.tryParse(_sys.text);
     final dia = int.tryParse(_dia.text);
     final pulse = _pulse.text.isEmpty ? null : int.tryParse(_pulse.text);
@@ -55,7 +79,22 @@ class _RecordScreenState extends State<RecordScreen> {
     await AppDb.instance.saveReading(r);
     if (!mounted) return;
     final cat = classify(r.sys, r.dia);
-    toast(context, 'Записано: ${r.sys}/${r.dia} — ${cat.label.toLowerCase()}');
+    final when = DateFormat('d MMM, HH:mm', 'ru').format(r.time);
+    if (more) {
+      // Остаёмся на экране: чистим цифры, дату оставляем — удобно вносить подряд
+      _added++;
+      _sys.clear();
+      _dia.clear();
+      _pulse.clear();
+      _note.clear();
+      setState(() {
+        _mood = null;
+        _error = null;
+      });
+      toast(context, 'Записано $when: ${r.sys}/${r.dia}. Добавлено: $_added');
+      return;
+    }
+    toast(context, 'Записано $when: ${r.sys}/${r.dia} — ${cat.label.toLowerCase()}');
     Navigator.pop(context, true);
   }
 
@@ -90,7 +129,7 @@ class _RecordScreenState extends State<RecordScreen> {
 
   @override
   Widget build(BuildContext context) => KnitScaffold(
-        title: 'Запись давления',
+        title: widget.initial != null ? 'Изменить запись' : (widget.past ? 'Прошлое измерение' : 'Запись давления'),
         actions: [
           if (widget.initial != null) IconButton(icon: const Icon(Icons.delete_outline, color: Wool.muted), onPressed: _delete),
         ],
@@ -141,7 +180,7 @@ class _RecordScreenState extends State<RecordScreen> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Дата и время', style: TextStyle(fontSize: 13, color: Wool.muted, fontWeight: FontWeight.w600)),
+                    Text(widget.past ? 'Когда измеряли — нажми, чтобы изменить' : 'Дата и время (можно указать прошлую)', style: const TextStyle(fontSize: 13, color: Wool.muted, fontWeight: FontWeight.w600)),
                     Text(DateFormat('d MMM yyyy, HH:mm', 'ru').format(_time), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                   ]),
                 ),
@@ -170,7 +209,17 @@ class _RecordScreenState extends State<RecordScreen> {
             if (_error != null)
               Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Wool.raspberry, fontWeight: FontWeight.w700, fontSize: 15))),
             const SizedBox(height: 22),
-            KnitButton(label: 'Сохранить', onPressed: _save),
+            if (widget.past) ...[
+              KnitButton(label: 'Сохранить и добавить ещё', primary: false, onPressed: () => _save(more: true)),
+              const SizedBox(height: 12),
+            ],
+            KnitButton(label: widget.past && _added > 0 ? 'Сохранить и закончить' : 'Сохранить', onPressed: _save),
+            if (!widget.past && widget.initial == null)
+              TextButton.icon(
+                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RecordScreen(past: true))),
+                icon: const Icon(Icons.history, color: Wool.muted),
+                label: const Text('Записать прошлые показания', style: TextStyle(color: Wool.muted, fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
           ],
         ),
       );

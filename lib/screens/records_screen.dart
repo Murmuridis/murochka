@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../bp.dart';
 import '../db.dart';
 import '../knit.dart';
+import 'pdf_sheet.dart';
 import 'record_screen.dart';
 
 /// Текст дневника для врача (последние [days] дней).
@@ -47,16 +47,20 @@ class _RecordsScreenState extends State<RecordsScreen> {
     if (mounted) setState(() => _items = r);
   }
 
-  Future<void> _copy() async {
-    final text = await doctorReport();
-    if (!mounted) return;
-    if (text.isEmpty) {
-      toast(context, 'За последний месяц записей нет');
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: text));
-    if (mounted) toast(context, 'Дневник за месяц скопирован — можно вставить в сообщение врачу');
-  }
+  Widget _addPast() => SoftCard(
+        margin: const EdgeInsets.only(top: 4, bottom: 6),
+        onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const RecordScreen(past: true)));
+          _load();
+        },
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        child: const Row(children: [
+          Icon(Icons.history, color: Wool.raspberry, size: 28),
+          SizedBox(width: 12),
+          Expanded(child: Text('Добавить прошлые показания', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+          Icon(Icons.add_circle_outline, color: Wool.raspberry),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -107,12 +111,16 @@ class _RecordsScreenState extends State<RecordsScreen> {
     }
     return KnitScaffold(
       title: 'Все записи',
-      actions: [IconButton(tooltip: 'Скопировать для врача', icon: const Icon(Icons.copy_all_outlined, color: Wool.ink), onPressed: _copy)],
+      actions: [IconButton(tooltip: 'PDF для врача', icon: const Icon(Icons.picture_as_pdf_outlined, color: Wool.raspberry), onPressed: () => showPdfSheet(context))],
       body: items == null
           ? const SizedBox()
           : items.isEmpty
-              ? const Center(child: Text('Записей пока нет', style: TextStyle(fontSize: 17, color: Wool.muted)))
-              : ListView(padding: EdgeInsets.fromLTRB(14, 0, 14, 24 + MediaQuery.of(context).padding.bottom), children: widgets),
+              ? ListView(padding: const EdgeInsets.all(14), children: [
+                  _addPast(),
+                  const SizedBox(height: 30),
+                  const Center(child: Text('Записей пока нет', style: TextStyle(fontSize: 17, color: Wool.muted))),
+                ])
+              : ListView(padding: EdgeInsets.fromLTRB(14, 0, 14, 24 + MediaQuery.of(context).padding.bottom), children: [_addPast(), ...widgets]),
     );
   }
 }

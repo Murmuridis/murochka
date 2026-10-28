@@ -6,6 +6,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../bp.dart';
 import '../db.dart';
 import '../knit.dart';
+import 'pdf_sheet.dart';
 import 'records_screen.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -90,6 +91,20 @@ class _StatsScreenState extends State<StatsScreen> {
           Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _chartCard()),
           const SizedBox(height: 12),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _summaryCard()),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: SoftCard(
+              onTap: () => showPdfSheet(context),
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: const Row(children: [
+                Icon(Icons.picture_as_pdf_outlined, color: Wool.raspberry, size: 30),
+                SizedBox(width: 14),
+                Expanded(child: Text('PDF для врача', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+                Icon(Icons.chevron_right, color: Wool.ink),
+              ]),
+            ),
+          ),
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
