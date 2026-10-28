@@ -60,6 +60,33 @@ else:
         s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.murochka")
         groovy.write_text(s)
 
+# --- R8: не вырезать типы Gson, иначе плагин уведомлений не может
+# сохранить расписание ("Missing type parameter")
+(app / "proguard-rules.pro").write_text("""
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes InnerClasses,EnclosingMethod
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep class com.google.gson.** { *; }
+-keep class com.dexterous.** { *; }
+-dontwarn com.google.gson.**
+""")
+if kts.exists():
+    s = kts.read_text()
+    if 'proguard-rules.pro' not in s:
+        s = s.replace('signingConfig = signingConfigs.getByName("murochka")',
+                      'signingConfig = signingConfigs.getByName("murochka")\n'
+                      '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")', 1)
+        kts.write_text(s)
+else:
+    s = groovy.read_text()
+    if 'proguard-rules.pro' not in s:
+        s = s.replace("signingConfig signingConfigs.murochka",
+                      "signingConfig signingConfigs.murochka\n"
+                      "            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'", 1)
+        groovy.write_text(s)
+
 # --- AndroidManifest.xml
 mf = app / "src" / "main" / "AndroidManifest.xml"
 m = mf.read_text()
@@ -102,4 +129,5 @@ for dens in ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]:
 
 kt = (kts.read_text() if kts.exists() else groovy.read_text())
 assert "murochka" in kt and ("getByName(\"murochka\")" in kt or "signingConfigs.murochka" in kt), "signing not patched"
+assert "proguard-rules.pro" in kt, "proguard not patched"
 print("Android patched")

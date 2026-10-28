@@ -151,6 +151,35 @@ class Notifier {
     );
   }
 
+  /// Тестовое напоминание через минуту — тем же путём, что и настоящие.
+  Future<void> scheduleTest() async {
+    await requestPermissions();
+    final when = tz.TZDateTime.now(tz.local).add(const Duration(minutes: 1));
+    Future<void> go(AndroidScheduleMode mode) => _plugin.zonedSchedule(
+          999998,
+          'Мурочка',
+          'Проверка: напоминания работают',
+          when,
+          const NotificationDetails(android: AndroidNotificationDetails('meds_v2', 'Лекарства', importance: Importance.max, priority: Priority.high, color: Color(0xFFC93C5E))),
+          androidScheduleMode: mode,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        );
+    try {
+      await go(AndroidScheduleMode.exactAllowWhileIdle);
+    } catch (_) {
+      await go(AndroidScheduleMode.inexactAllowWhileIdle);
+    }
+  }
+
+  /// Сколько напоминаний сейчас поставлено в системе.
+  Future<int> pendingCount() async => (await _plugin.pendingNotificationRequests()).length;
+
+  /// Включены ли уведомления для приложения.
+  Future<bool> enabled() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    return await android?.areNotificationsEnabled() ?? true;
+  }
+
   Future<void> rescheduleAll() async {
     await _plugin.cancelAll();
     for (final m in await AppDb.instance.meds()) {

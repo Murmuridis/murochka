@@ -61,6 +61,14 @@ class MurochkaApp extends StatelessWidget {
             trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
           ),
         ),
+        // Крупный системный шрифт оставляем, но не даём ему ломать вёрстку
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          return MediaQuery(
+            data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.15)),
+            child: child!,
+          );
+        },
         home: const HomeScreen(),
       );
 }

@@ -71,10 +71,17 @@ class _TodayScreenState extends State<TodayScreen> {
                       },
                       child: Row(children: [
                         SizedBox(
-                          width: 62,
-                          child: Text(s.time,
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: !s.taken && s.time.compareTo(now) < 0 ? Wool.raspberry : Wool.ink)),
+                          width: 72,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(s.time,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: !s.taken && s.time.compareTo(now) < 0 ? Wool.raspberry : Wool.ink)),
+                          ),
                         ),
+                        const SizedBox(width: 6),
                         PillIcon(shape: s.med.shape, color: pillColors[s.med.color % pillColors.length], size: 46),
                         const SizedBox(width: 12),
                         Expanded(

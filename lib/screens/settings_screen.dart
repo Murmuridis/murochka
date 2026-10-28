@@ -17,6 +17,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   DateTime? _lastBackup;
   bool _busy = false;
+  int? _pending;
+  bool? _notifOn;
 
   @override
   void initState() {
@@ -26,7 +28,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadMeta() async {
     final v = await AppDb.instance.getMeta('last_backup');
-    if (mounted) setState(() => _lastBackup = v == null ? null : DateTime.tryParse(v));
+    int? pending;
+    bool? on;
+    try {
+      pending = await Notifier.instance.pendingCount();
+      on = await Notifier.instance.enabled();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _lastBackup = v == null ? null : DateTime.tryParse(v);
+        _pending = pending;
+        _notifOn = on;
+      });
+    }
   }
 
   Future<void> _run(Future<void> Function() job) async {
@@ -36,6 +50,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await job();
     } on FormatException catch (e) {
       if (mounted) toast(context, e.message);
+    } on PlatformException catch (e) {
+      if (mounted) toast(context, 'Ошибка: ${e.message ?? e.code}');
     } catch (e) {
       if (mounted) toast(context, 'Не получилось: $e');
     } finally {
@@ -121,7 +137,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _item(_ic(Icons.send_outlined), 'Отправить копию', 'В Telegram, на почту или в облако', _share),
             _item(_ic(Icons.settings_backup_restore), 'Восстановить из копии', 'После переустановки или на новом телефоне', _restore),
             _section('Напоминания'),
-            _item(_ic(Icons.notifications_active_outlined), 'Проверить напоминание', 'Пришлю тестовое уведомление прямо сейчас', () => _run(Notifier.instance.showTest)),
+            if (_pending != null)
+              SoftCard(
+                margin: const EdgeInsets.only(bottom: 12),
+                color: _notifOn == false ? Wool.rose : Wool.card,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(children: [
+                  Icon(_notifOn == false ? Icons.notifications_off_outlined : Icons.alarm_on, color: _notifOn == false ? Wool.raspberry : Wool.green),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _notifOn == false
+                          ? 'Уведомления для Мурочки выключены в настройках телефона. Без них напоминания не придут.'
+                          : 'Поставлено напоминаний: $_pending',
+                      style: const TextStyle(fontSize: 14, height: 1.35),
+                    ),
+                  ),
+                ]),
+              ),
+            _item(_ic(Icons.notifications_active_outlined), 'Проверить сейчас', 'Тестовое уведомление прямо сейчас', () => _run(Notifier.instance.showTest)),
+            _item(_ic(Icons.timer_outlined), 'Проверить через минуту', 'Поставлю напоминание на минуту вперёд — закрой приложение и подожди', () => _run(() async {
+                  await Notifier.instance.scheduleTest();
+                  if (mounted) toast(context, 'Жди уведомление через минуту');
+                })),
             _item(_ic(Icons.refresh), 'Обновить напоминания', 'Если уведомления перестали приходить', () => _run(() async {
                   await Notifier.instance.requestPermissions();
                   await Notifier.instance.rescheduleAll();
