@@ -73,7 +73,10 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: SoftCard(
                   radius: 22,
                   padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Text('${df.format(_start)} – ${df.format(_end)} ${_end.year}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('${df.format(_start)} – ${df.format(_end)} ${_end.year}', maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -137,7 +140,7 @@ class _StatsScreenState extends State<StatsScreen> {
       child: Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: pulse
             ? [_legend(Wool.pulseLine, 'Пульс')]
-            : [_legend(Wool.sysLine, 'Систолическое'), _legend(Wool.diaLine, 'Диастолическое')]),
+            : [_legend(Wool.sysLine, 'Верхнее'), _legend(Wool.diaLine, 'Нижнее')]),
         const SizedBox(height: 10),
         SizedBox(
           height: 220,
@@ -154,9 +157,16 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Widget _summaryCard() {
     Widget cell(String v, String label) => Expanded(
-          child: Column(children: [
-            Text(v, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-            Text(label, style: const TextStyle(fontSize: 12, color: Wool.muted)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(v, maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, height: 1.1)),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label, maxLines: 1, softWrap: false, style: const TextStyle(fontSize: 13, color: Wool.muted)),
+            ),
           ]),
         );
     int avg(Iterable<int> l) => l.isEmpty ? 0 : (l.reduce((a, b) => a + b) / l.length).round();
@@ -183,15 +193,17 @@ class _StatsScreenState extends State<StatsScreen> {
         final cat = classify(s, d);
         tag = cat.label;
         tagColor = cat.color;
-        cells = [cell('$s', 'Систолическое'), cell('$d', 'Диастолическое'), if (p.isNotEmpty) cell('${avg(p)}', 'Пульс')];
+        cells = [cell('$s', 'верхнее'), cell('$d', 'нижнее'), if (p.isNotEmpty) cell('${avg(p)}', 'пульс')];
       }
     }
     return SoftCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(children: [
         Row(children: [
-          Text(_tab == 2 ? 'Приём за неделю' : 'Средние значения', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          const Spacer(),
+          Expanded(
+            child: Text(_tab == 2 ? 'Приём за неделю' : 'Средние значения', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 8),
           if (tag != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -200,7 +212,7 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
         ]),
         const SizedBox(height: 12),
-        Row(children: cells),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells),
       ]),
     );
   }
