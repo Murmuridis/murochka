@@ -29,8 +29,26 @@ jobs:
         run: python3 tool/patch_android.py
 
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
-      - run: flutter build apk --release
+
+      - name: Analyze
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings > analyze.log 2>&1 || true
+          cat analyze.log
+          if grep -q "error •" analyze.log; then
+            msg=$(grep "error •" analyze.log | head -40 | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Dart errors::$msg"
+          fi
+
+      - name: Build APK
+        run: |
+          set -o pipefail
+          if ! flutter build apk --release 2>&1 | tee build.log; then
+            msg=$(grep -nE "error:|Error:|What went wrong|^e: |Exception|FAILURE|Could not" build.log | head -50 | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Build errors::$msg"
+            msg2=$(tail -60 build.log | tr -d '\r' | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=Build tail::$msg2"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
