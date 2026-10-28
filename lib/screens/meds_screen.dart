@@ -171,6 +171,7 @@ class _MedEditScreenState extends State<MedEditScreen> {
   late PillShape _shape = widget.initial?.shape ?? PillShape.capsule;
   late int _color = widget.initial?.color ?? 0;
   String? _error;
+  bool _saving = false;
 
   Future<void> _addTime() async {
     final t = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 8, minute: 0), helpText: 'Время приёма');
@@ -197,10 +198,26 @@ class _MedEditScreenState extends State<MedEditScreen> {
       shape: _shape,
       color: _color,
     );
+    if (_saving) return;
+    setState(() => _saving = true);
     final id = await AppDb.instance.saveMed(m);
-    await Notifier.instance.requestPermissions();
-    await Notifier.instance.scheduleMed(m.copyWith(id: id));
-    if (mounted) Navigator.pop(context);
+    var scheduled = true;
+    try {
+      await Notifier.instance.requestPermissions();
+      await Notifier.instance.scheduleMed(m.copyWith(id: id));
+    } catch (_) {
+      scheduled = false;
+    }
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    messenger.showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Wool.ink,
+      content: Text(scheduled
+          ? '${m.name} сохранено, напоминания: ${m.times.join(', ')}'
+          : '${m.name} сохранено, но напоминание поставить не удалось. Настройки → «Обновить напоминания».'),
+    ));
   }
 
   Future<void> _delete() async {
@@ -285,7 +302,7 @@ class _MedEditScreenState extends State<MedEditScreen> {
             ]),
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: Wool.raspberry, fontWeight: FontWeight.w700, fontSize: 15))),
             const SizedBox(height: 24),
-            KnitButton(label: 'Сохранить', onPressed: _save),
+            KnitButton(label: _saving ? 'Сохраняю…' : 'Сохранить', onPressed: _saving ? null : _save),
           ],
         ),
       );

@@ -184,22 +184,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
-            SoftCard(
-              radius: 34,
+            _MainButton(
+              icon: Image.asset('assets/images/heart.png', width: 40, height: 40, filterQuality: FilterQuality.high),
+              label: 'Записать давление',
               onTap: () => _go(const RecordScreen()),
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Image(image: AssetImage('assets/images/heart.png'), width: 34, height: 34),
-                SizedBox(width: 12),
-                Text('Записать давление', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-              ]),
             ),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _Tile(image: 'assets/images/ic_pill.png', label: 'Мои\nлекарства', onTap: () => _go(const MedsScreen()))),
-              const SizedBox(width: 12),
-              Expanded(child: _Tile(image: 'assets/images/ic_chart.png', label: 'Статистика', onTap: () => _go(const StatsScreen()))),
-            ]),
+            const SizedBox(height: 10),
+            _MainButton(
+              icon: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.asset('assets/images/ic_pill.png', width: 42, height: 42, filterQuality: FilterQuality.high)),
+              label: 'Мои лекарства',
+              onTap: () => _go(const MedsScreen()),
+            ),
+            const SizedBox(height: 10),
+            _MainButton(
+              icon: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.asset('assets/images/ic_chart.png', width: 42, height: 42, filterQuality: FilterQuality.high)),
+              label: 'Статистика',
+              onTap: () => _go(const StatsScreen()),
+            ),
           ]),
         ),
       ]),
@@ -207,22 +208,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
-class _Tile extends StatelessWidget {
-  final String image;
+/// Широкая кнопка главного экрана: картинка слева, подпись, стрелка.
+class _MainButton extends StatelessWidget {
+  final Widget icon;
   final String label;
   final VoidCallback onTap;
-  const _Tile({required this.image, required this.label, required this.onTap});
+  const _MainButton({required this.icon, required this.label, required this.onTap});
   @override
   Widget build(BuildContext context) => SoftCard(
+        radius: 30,
         onTap: onTap,
-        padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
-        child: SizedBox(
-          height: 104,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset(image, width: 60, height: 60, filterQuality: FilterQuality.high)),
-            const SizedBox(height: 8),
-            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.15)),
-          ]),
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+        child: Row(children: [
+          SizedBox(width: 44, height: 44, child: Center(child: icon)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          ),
+          const Icon(Icons.chevron_right, color: Wool.muted, size: 28),
+        ]),
       );
 }
